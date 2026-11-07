@@ -704,6 +704,14 @@
       <label style="display:flex;align-items:center;gap:4px;margin-bottom:4px;cursor:pointer;">
         <input id="studioBarGridCb" type="checkbox"> <span>แสดงเส้นห้อง</span>
       </label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px;">
+        <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input id="studioSub4Cb" type="checkbox"> <span style="color:#fff">1/4</span></label>
+        <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input id="studioSub8Cb" type="checkbox"> <span style="color:#5ac8ff">1/8</span></label>
+        <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input id="studioSub16Cb" type="checkbox"> <span style="color:#ffd25a">1/16</span></label>
+      </div>
+      <label style="display:flex;align-items:center;gap:4px;margin-bottom:4px;cursor:pointer;">
+        <input id="studioRulerCb" type="checkbox" checked> <span>ไม้บรรทัดเวลา (ซ้ายเลน)</span>
+      </label>
       <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
         <span style="width:56px;color:rgba(255,255,255,0.5);">BPM</span>
         <input id="studioBpmInput" type="number" step="0.01" value="120" style="flex:1;width:0;background:#1c2029;border:1px solid #2a2f3d;color:#e8eaf0;padding:3px 5px;border-radius:4px;">
@@ -903,7 +911,7 @@
   <input type="file" id="edVideoInput" accept="video/*" style="display:none">
   <input type="file" id="edAudioInput" accept=".mp3,.ogg,.wav,.m4a,.aac" style="display:none">
   <input type="file" id="loadChartInput" accept=".json,.thapster,.zip,application/json,application/zip,application/octet-stream" style="display:none">
-  <input type="file" id="loadAssetsInput" accept=".png" multiple style="display:none">
+  <input type="file" id="loadAssetsInput" accept=".png,image/png,application/octet-stream" multiple style="display:none">
 
 <button id="fs-btn">⛶</button>
 <div id="fsBarToggle">
@@ -2233,7 +2241,7 @@ function drawButtons(){
   bg.addColorStop(0,'rgba(255,30,130,0.97)');bg.addColorStop(0.35,'rgba(245,0,115,0.95)');bg.addColorStop(1,'rgba(180,0,82,0.90)');
   ctx.fillStyle=bg;ctx.fill();
   for(let ln=0;ln<lanes();ln++){
-    const f=Math.max(state.flash[ln],state.down[ln]?0.72:0,(typeof Enjoy!=='undefined'&&Enjoy.on&&Enjoy.sweep)?Enjoy.sweep(ln)*0.85:0);if(f<=0.01) continue;
+    const f=Math.max(state.flash[ln],state.down[ln]?0.72:0,(typeof Enjoy!=='undefined'&&Enjoy.on&&Enjoy.sweep)?Enjoy.sweep(ln)*0.85:0,(typeof Enjoy!=='undefined'&&Enjoy.on&&Enjoy.auto)?Enjoy.auto(ln):0);if(f<=0.01) continue;
     ctx.save();buttonLanePath(ln);ctx.clip();
     const lg=ctx.createLinearGradient(0,topY,0,botY);
     lg.addColorStop(0,`rgba(255,255,255,${0.88*f})`);lg.addColorStop(0.22,`rgba(255,220,245,${0.70*f})`);
@@ -3149,13 +3157,16 @@ function loadChartFromText(text){
       const notes=d.notes||[];
       rec.notes=notes.map(n=>({...n,source:'file'}));
       if (typeof studioNoteOff !== 'undefined') { studioNoteOff = 0; const ni=document.getElementById('studioNoteShiftInput'); if(ni) ni.value='0'; if (typeof studioOffStatus==='function') studioOffStatus(); }
-      if (ChartRender){ const hadR=!!(d&&d.render); const ok=ChartRender.load(d); if(hadR && !ok) alert('ไฟล์นี้มี render แต่ข้อมูลไม่ครบ/ใช้ไม่ได้ — ใช้การวาดแบบ v2 แทน (โน้ตยังเล่นได้)'); }
+      if (ChartRender){ const hadR=!!(d&&d.render); const ok=ChartRender.load(d); if(hadR && !ok) thToast('ชาร์ตนี้มี render แต่ข้อมูลไม่ครบ → ใช้การวาดแบบ v2 (โน้ตยังเล่นได้)', 4000); }
       if (typeof apprOnChartLoaded === 'function') apprOnChartLoaded(d);
       if (typeof Enjoy!=='undefined' && d && d.theme) Enjoy.setTheme(d.theme);
       try { avAOff += musicApplied; avVOff += musicApplied; musicApplied = 0;
         if (d && d.av) { if (isFinite(+d.av.audio_offset)) avAOff = +d.av.audio_offset; if (isFinite(+d.av.video_offset)) avVOff = +d.av.video_offset; }
         } catch(e){}
       if (typeof studioEnjoySet==='function') studioEnjoySet(d && d.enjoy ? d.enjoy : null, true);   // music start/end/tail saved in the chart ({enjoy:{start,end,tail}}); absent = defaults
+      try { if (d && d.grid && +d.grid.bpm > 0) { studioBpm = +d.grid.bpm; const bi=document.getElementById('studioBpmInput'); if (bi) bi.value = studioBpm;
+          const go = (d.grid.pulse_offset_sec!=null) ? +d.grid.pulse_offset_sec : (d.grid.offset_sec!=null ? +d.grid.offset_sec : null);
+          if (go!==null && isFinite(go)) { studioBarOffset = go; const oi=document.getElementById('studioBarOffsetInput'); if (oi) oi.value = go.toFixed(3); } } } catch(e){}
       window._enjoyGrid = (d && d.grid && d.grid.bpm) ? {bpm:d.grid.bpm, offset:(d.grid.pulse_offset_sec!=null ? d.grid.pulse_offset_sec : (d.grid.offset_sec||0))} : null;   // pulse_offset_sec = time of a measured edge-light RISE (preferred); else the note-grid offset // chart with `render` block -> measured motion/skin; without -> v2 behaviour
       const maxT=notes.length?Math.max(...notes.map(n=>(n.time||0)+(n.duration||0))):60;
       rec.duration=maxT*1000;
@@ -3338,8 +3349,16 @@ let viewApproach = SPEED_K / speedSetting; // seconds a note takes from vanishin
 // SECOND OPTION: it is never used until the user picks it (panel shown when it differs from the formula).
 // No BPM in the chart -> the formula runs with a PLACEHOLDER BPM (APPR_BPM_GUESS, a guess, labelled as such) + a panel asking for the real BPM.
 // The old K/speed rule (4.25/speed) is gone: it ignores BPM and the speed law (x4.0 on 153 BPM: 1.06 s vs ~0.6 s real).
-const APPR_B1 = 5.64, APPR_K = 0.438;
-const apprBeats = sp => APPR_B1 * Math.exp(-APPR_K * (sp - 1));
+// 2026-11-05 LAW (replaces 5.64*exp(-0.438*(sp-1))): note velocity at screen y is  v(y) = (BPM/60) * exp(PHYS_SHAPE(y) + a0(speed))  px/frame@60.
+// Same PHYS_SHAPE cubic for every song; BPM enters only as the factor BPM/60 (checked: Reua 108 vs Alone 96 at x3, dh 148 vs gp 172 at x4, a0 equal within 0.5%).
+// a0(speed) MEASURED at x3.0 (Reua 1.0766, Alone 1.0812) and x4.0 (dh 1.4818, gp 1.4829); x1/x2 come from OLD 30fps rows (flag: +-0.035) and
+// in-between speeds are linear interpolation (GUESS, not measured).
+const APPR_A0 = [[1,0.1843],[2,0.6059],[3,1.0790],[4,1.4824]];
+function apprA0(sp){ const T=APPR_A0; if(sp<=T[0][0]) return T[0][1]+(sp-T[0][0])*(T[1][1]-T[0][1]);
+  for(let i=1;i<T.length;i++){ if(sp<=T[i][0]) return T[i-1][1]+(sp-T[i-1][0])*(T[i][1]-T[i-1][1])/(T[i][0]-T[i-1][0]); }
+  const n=T.length; return T[n-1][1]+(sp-T[n-1][0])*(T[n-1][1]-T[n-2][1]); }
+const APPR_YREF = 14.15, APPR_YJ = 878;     // beats are defined spawn y 14.15 -> judge 878 (pooled-motion doc definition)
+const apprBeats = sp => (physTime(APPR_YREF, APPR_YJ)/60) * Math.exp(-apprA0(sp));
 const APPR_BPM_GUESS = 120;      // placeholder only when the chart has no BPM (GUESS)
 let apprBpm = 0;                 // BPM for the formula (chart grid.bpm or typed by the user), 0 = unknown
 let apprMode = 'formula';        // 'formula' | 'measured'
@@ -3355,7 +3374,7 @@ function apprRecompute(){
   else { A = apprFormula(speedSetting); src = apprBpm > 0 ? 'สูตร' : 'สูตร (BPM เดา ' + APPR_BPM_GUESS + ')'; }
   viewApproach = A;
   let CR=null; try{ CR=ChartRender; }catch(e){}
-  if (CR && CR.active()) CR.setApproach(A);
+  if (CR && CR.active()) CR.setApproach((apprMode==='measured' && apprMeasured) ? A : A*CR.spawnFrac());
   const el = document.getElementById('apprInfo'); if (el) el.textContent = viewApproach.toFixed(2) + ' s · ' + src;
 }
 function apprShowPanel(msg, buttons){
@@ -3443,6 +3462,24 @@ const univF = makeCurve(UNIVERSAL_NOTE_CURVE);
 function curveYf(p) { return univF(p); }
 // ONE motion rule for every chart (render block or not): p = elapsed fraction of the approach (0 = leaves the point, 1 = JM line).
 // Returns the fraction of the distance point->JM line; null before release; keeps running past the line at the curve's own end speed.
+
+// NEW DEFAULT motion (v17): shared shape of ln v(y) (cubic in canonical 1080p y), measured on Klerm/Ter/Alone/ReuaLek (x3.0) and Dharmajati (x4.0);
+// v(y)=exp(c3*y^3+c2*y^2+c1*y+a). Only the scale a (= approach time) is per song, and it drops out when time is normalised to 0..1.
+// Check: ReuaLek x3.0 real table vs this curve rms 0.8 px / max 1.2 px; Dharmajati x4.0 rms 2.4 / max 5.7 px (old univF: up to 94 px off on ReuaLek).
+const PHYS_C3=-5.9185e-09, PHYS_C2=8.9423e-06, PHYS_C1=-6.368e-04;
+const PHYS_YREF=14.15;   // formula spawn reference: approach beats formula measured to y~18 (x4.0 songs: dh 1.53 / gp 1.52 beats; x3.0 ReuaLek 2.29 to y18)
+function physTime(ya, y0){ const N=800; let t=0, prev=Math.exp(-(PHYS_C3*ya**3+PHYS_C2*ya**2+PHYS_C1*ya));
+  for(let i=1;i<=N;i++){ const y=ya+(y0-ya)*i/N, iv=Math.exp(-(PHYS_C3*y**3+PHYS_C2*y**2+PHYS_C1*y)); t+=0.5*(iv+prev)*(y0-ya)/N; prev=iv; } return t; }
+function physCurve(ysp, y0){
+  const N=2000, ys=new Float64Array(N+1), t=new Float64Array(N+1);
+  for(let i=0;i<=N;i++){ ys[i]=ysp+(y0-ysp)*i/N; }
+  const iv=y=>Math.exp(-(PHYS_C3*y*y*y+PHYS_C2*y*y+PHYS_C1*y));
+  for(let i=1;i<=N;i++) t[i]=t[i-1]+0.5*(iv(ys[i])+iv(ys[i-1]))*(ys[i]-ys[i-1]);
+  const T=t[N], u=[], f=[]; let j=0;
+  for(let k=0;k<=40;k++){ const tt=T*k/40; while(j<N-1 && t[j+1]<tt) j++;
+    const w=(t[j+1]>t[j])?(tt-t[j])/(t[j+1]-t[j]):0; const y=ys[j]+(ys[j+1]-ys[j])*w; u.push(k/40); f.push((y-ysp)/(y0-ysp)); }
+  f[0]=0; f[40]=1; return makeCurve({u:u,f:f});
+}
 const UNIV_END_SLOPE = (univF(1) - univF(0.98)) / 0.02;
 function motionFrac(p, F) {
   if (p < 0) return null;
@@ -3617,24 +3654,38 @@ function resolveAssetKey(norm) {
   if (m2 && FLICK_DIRS_SET.has(m2[1])) return "flickArrow_" + m2[1] + "_miss";
   return null;
 }
+function thToast(msg, ms){
+  let el = document.getElementById('thToast');
+  if (!el) { el = document.createElement('div'); el.id = 'thToast'; el.style.cssText = 'position:fixed;left:50%;bottom:14%;transform:translateX(-50%);z-index:99999;max-width:86vw;background:rgba(0,0,0,.85);color:#fff;padding:10px 16px;border-radius:10px;font:14px sans-serif;white-space:pre-line;text-align:center;pointer-events:none'; document.body.appendChild(el); }
+  el.textContent = msg; el.style.display = 'block'; clearTimeout(el._t); el._t = setTimeout(()=>{ el.style.display = 'none'; }, ms || 5000);
+}
 async function handleAssetFiles(fileList) {
-  const pngs = [...fileList].filter(f => f.name.toLowerCase().endsWith(".png"));
+  const all = [...fileList];
+  const pngs = all.filter(f => f.name.toLowerCase().endsWith(".png"));
+  const unknown = [], failed = []; let okN = 0;
   for (const file of pngs) {
     const norm = normalizeAssetName(file.name);
     try {
       const img = await loadImageFile(file);
       if (norm === "keytex") {
-        buildAssetsFromKeytex(img);
+        buildAssetsFromKeytex(img); okN++;
         loadedAssetFileNames.add(norm);
         (window._assetRaw = window._assetRaw || {})[file.name] = file;
         continue;
       }
       const key = resolveAssetKey(norm);
-      if (key) { noteImages[key] = img; loadedAssetFileNames.add(norm); (window._assetRaw = window._assetRaw || {})[file.name] = file; }
-      else console.warn("ไม่รู้จักชื่อไฟล์ asset:", file.name);
-    } catch (err) { console.warn(err.message); }
+      if (key) { noteImages[key] = img; loadedAssetFileNames.add(norm); (window._assetRaw = window._assetRaw || {})[file.name] = file; okN++; }
+      else { console.warn("ไม่รู้จักชื่อไฟล์ asset:", file.name); unknown.push(file.name); }
+    } catch (err) { console.warn(err.message); failed.push(file.name); }
   }
   updateAssetStatus();
+  { const skipped = all.length - pngs.length;
+    let m = 'โหลดรูปได้ ' + okN + ' ไฟล์ · รวม ' + assetsLoadedCount() + '/' + ASSET_EXPECTED_FILES.length;
+    if (unknown.length) m += '\nชื่อไฟล์ไม่ตรงที่โปรแกรมรู้จัก: ' + unknown.slice(0,4).join(', ') + (unknown.length>4?' …':'') + '\n(ต้องเป็นชื่อเดิม เช่น tap.png, flickup.png — เลือกจากแอป Files ไม่ใช่ Photos)';
+    if (failed.length) m += '\nเปิดรูปไม่ได้: ' + failed.slice(0,4).join(', ');
+    if (skipped) m += '\nข้ามไฟล์ที่ไม่ใช่ .png ' + skipped + ' ไฟล์';
+    if (!all.length) m = 'ไม่ได้เลือกไฟล์';
+    thToast(m, (unknown.length||failed.length)?9000:4500); }
 }
 function assetsLoadedCount() {
   return ASSET_EXPECTED_FILES.filter(f => loadedAssetFileNames.has(f)).length;
@@ -3712,12 +3763,15 @@ function lineRuns(img){
   }
   runs = runs.filter(r=>r.a>0.004).sort((u,v)=>u.a-v.a); LINE_RUNS.set(img, runs); return runs;
 }
-function drawRibbonV2(w0, w1, viewT, img){                 // one solid ribbon between two hold waypoints (no repeated picture)
+function drawRibbonV2(wps, viewT, img){                    // ONE continuous ribbon through every hold waypoint (shared normals at the joints: no cut-and-paste seams)
   const pts = [], S = 30;
-  for (let s=0;s<=S;s++){
-    const f=s/S, t=w0.t+(w1.t-w0.t)*f, ln=w0.lane+(w1.lane-w0.lane)*f, yf=noteViewYF(t,viewT); if (yf===null) continue;
-    const laneW=(eR(yf)-eL(yf))/lanes();
-    pts.push({x:nXf(ln,yf), y:yf*H, w:laneW*notePreset.notes.hold.glowScale*2});
+  for (let k=0;k<wps.length-1;k++){
+    const w0=wps[k], w1=wps[k+1];
+    for (let s=(k?1:0);s<=S;s++){
+      const f=s/S, t=w0.t+(w1.t-w0.t)*f, ln=w0.lane+(w1.lane-w0.lane)*f, yf=noteViewYF(t,viewT); if (yf===null) continue;
+      const laneW=(eR(yf)-eL(yf))/lanes();
+      pts.push({x:nXf(ln,yf), y:yf*H, w:laneW*notePreset.notes.hold.glowScale*2});
+    }
   }
   if (pts.length<2) return;
   const n=pts.length, nx=[], ny=[];
@@ -3756,7 +3810,7 @@ function drawNotePreview() {
       if (hasAssets) {
         // ── Real asset line (per segment) + caps at each waypoint ──────────
         if (imageReady(noteImages.holdLine)) {
-          lineQ.push(() => { for (let wi = 0; wi < wps.length - 1; wi++) drawRibbonV2(wps[wi], wps[wi+1], viewT, noteImages.holdLine); });
+          lineQ.push(() => drawRibbonV2(wps, viewT, noteImages.holdLine));
         }
         wps.forEach((wp, wi) => {
           const yf_wp = noteViewYF(wp.t, viewT);
@@ -3830,7 +3884,7 @@ function drawNotePreview() {
       const cx_ = nXf(li, yf);
       const isSel = isEdit && editSel.type === 'head';
 
-      const headOk = drawNoteImage(noteImages.tap, cx_, yf*H, w, h);
+      const headOk = n.type==='flick' ? true : drawNoteImage(noteImages.tap, cx_, yf*H, w, h);   // a flick is the arrow ONLY (real game: no tap underneath)
       if (!headOk) {
         ctx.beginPath();
         ctx.arc(cx_, yf * H, r + (isSel ? 3 : 0), 0, Math.PI * 2);
@@ -3850,7 +3904,7 @@ function drawNotePreview() {
         const dir = n.direction || 'up';
         const flick = notePreset.notes.flick;
         const aw = lw * flick.widthScale, ah = lw * flick.heightScale;
-        const ay = yf*H - lw * flick.yOffsetScale;
+        const ay = yf*H;
         const arrowOk = drawNoteImage(noteImages['flickArrow_'+dir], cx_, ay, aw, ah);
         if (!arrowOk) {
           const ang = ({ up:270,down:90,left:180,right:0,
@@ -3952,6 +4006,7 @@ var ChartRender = (function(){
     MOT.A = A1; MOT.step = MOT.step0*k; MOT.topSlope = MOT.topSlope0/k;
     MOT.botSlope = Math.max(500, MOTF.span*MOTF.endSlope/A1); MOT.pass = Math.max(0,(1085-MOT.y[0])/MOT.botSlope);
   };
+  api.spawnFrac = () => { if(!MOT||!MOTF||MOTF.custom) return 1; const ysp=MOT.y[MOT.y.length-1], y0=MOT.y[0]; return Math.min(1, physTime(ysp,y0)/physTime(PHYS_YREF,y0)); };   // fraction of the formula's approach time (spawn y~18) that this chart's table covers
   api.clear = () => { api.hideUntil=-1e9; on=false; R=G=LM=MOT=MOTF=null; dropChartSkin(); };
   api.viewYF = (tHit,viewT) => { const d=tHit-viewT; if(d>MOT.A+0.05||d<-1e-6) return null; return dispY(yOfD(Math.max(d,0)))/H; };
   api.x = (laneF,yf) => {                                  // laneF: 0-based, may be fractional
@@ -3996,7 +4051,10 @@ var ChartRender = (function(){
         R.sizes={k_w:kw,k_h:kw*hT,small_w:sw,small_h:(hS*sw)/hT,arrow_k_w:0.3586,arrow_k_h:0.5879};
       }
     }
-    if(!R.beam && R.sizes) R.beam={kind:'ribbon',rib_w:0.056,halo_w:0.36*R.sizes.k_w,halo_v:0.42,follow:'lane'};   // white ribbon, 0.36 x tap width (from the chart's own note)
+    if(!R.beam && R.sizes){   // beam width: read the chart's own measured half-max width (x pill width) when its text gives one; 0.9 = calibrated against the ReuaLek clip (28 px drawn vs 26 px real); otherwise the old 0.36 x tap width
+      const hm=(UF&&typeof UF.beam==='string')?num(UF.beam,/half-max width\s*=\s*([\d.]+)\s*x pill width/):null, hw=hm?0.9*hm*R.sizes.k_w:0.36*R.sizes.k_w;
+      R.beam={kind:'ribbon',rib_w:hm?hw*0.41:0.056,halo_w:hw,halo_v:0.42,follow:'lane'}; }
+    if(false) R.beam=null;   // white ribbon, 0.36 x tap width (from the chart's own note)
     if(R.skin!=='spool') R.skin='ring';
     const bad = !R.geometry || !R.lane_model || !R.sizes || !R.beam
       || !(R.lane_model.u_poly || ['-2','-1','0','1','2'].every(k=>Array.isArray(R.lane_model[k]) && R.lane_model[k].length>=2 && R.lane_model[k].every(isFinite)))
@@ -4006,9 +4064,9 @@ var ChartRender = (function(){
     const y=Float64Array.from(R.motion.y), n=y.length, m=Math.min(10,n-1);
     { // every chart moves on the universal curve (or its own render.motion_curve); the table only supplies spawn y, JM y and approach time
       const mc=R.motion_curve, okc=mc && Array.isArray(mc.u) && Array.isArray(mc.f) && mc.u.length>=3 && mc.u.length===mc.f.length && mc.u[0]===0 && mc.u[mc.u.length-1]===1 && mc.u.every(isFinite) && mc.f.every(isFinite);
-      const F=okc?makeCurve(mc):univF, ysp=y[n-1], y0=y[0], A0=(n-1)*R.motion.step;
-      for(let i=0;i<n;i++){ const d=i*R.motion.step; y[i]=y0+(ysp-y0)*(1-F(1-d/A0)); }
-      MOTF={F:F, endSlope:(F(1)-F(0.98))/0.02, span:y0-ysp, A:A0};
+      const ysp=y[n-1], y0=y[0], A0=(n-1)*R.motion.step, F=okc?makeCurve(mc):(window.__OLD_UNIV?univF:physCurve(ysp,y0));
+      if(!window.__USE_TABLE) for(let i=0;i<n;i++){ const d=i*R.motion.step; y[i]=y0+(ysp-y0)*(1-F(1-d/A0)); }
+      MOTF={custom:!!okc, F:F, endSlope:(F(1)-F(0.98))/0.02, span:y0-ysp, A:A0};
     }
     MOT={y:y, step:R.motion.step, A:(n-1)*R.motion.step, topSlope:(y[n-1-m]-y[n-1])/(m*R.motion.step)}; MOT.A0=MOT.A; MOT.step0=MOT.step; MOT.topSlope0=MOT.topSlope;
     { const st=R.motion.step, a8=Math.min(8,Math.max(0,n-3)), b16=Math.min(16,n-1); MOT.botSlope=Math.max(500, MOTF.span*MOTF.endSlope/MOTF.A); MOT.pass=Math.max(0,(1085-y[0])/MOT.botSlope); }   // slope from entries 8..16 (the first 8 are an extrapolation in some charts)
@@ -4050,7 +4108,7 @@ var ChartRender = (function(){
   function drawArrowShape(img,x,y,w,h,dir){
     if(imageReady(img)){
       const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height, lr=(dir==='left'||dir==='right');
-      let bw=w, bh=h; if(Math.abs(iw/ih-1)<0.05){ bw=bh=Math.max(w,h); } else { if(lr){ bw=h; bh=w; } const k=Math.min(bw/iw,bh/ih); bw=iw*k; bh=ih*k; }   // v2 keytex arrows are square; any other sprite keeps its own proportions (no stretching)
+      let bw=w, bh=h; if(Math.abs(iw/ih-1)<0.05 && !(img instanceof HTMLImageElement)){ bw=bh=Math.max(w,h); } else { if(lr){ bw=h; bh=w; } const k=Math.min(bw/iw,bh/ih); bw=iw*k; bh=ih*k; }   // v2 keytex arrows are square; any other sprite keeps its own proportions (no stretching)
       drawNoteImage(img,x,y,bw,bh); return;
     }
     const ang=({up:270,down:90,left:180,right:0,upleft:225,upright:315,downleft:135,downright:45}[dir]); const rad=(ang===undefined?270:ang)*Math.PI/180, r=Math.max(4,Math.min(w,h)*0.5);
@@ -4136,7 +4194,7 @@ var Enjoy = (function(){
     zoom0:2.75, zoomTau:0.34,   // zoom-out settle s = 1+(zoom0-1)*exp(-t/tau) about the point (centre, 45.3% of H) [least-squares fit on lane-edge x at 6 rows x 2 edges x 0.6 s, median residual 0.45 px]
     slideAt:0.52, slideDur:0.30, slideFrac:0.18, // button row rises into place, seconds after the dim [Bodyslam 0.60, iPad 0.45]
     // ---- outro: last note → lanes zoom IN and fade while the cover comes back [Bodyslam clip: last chart note 275.79 → zoom starts 277.0 → gone 277.55]
-    closeLen:1.21, padFlare:true, pressFx:true, beamW:1.0, beamTop:0.30, beamA:0.30, closeStepDur:0.10, edgeOut:[[0,1.5],[0.056,1.75],[0.278,2.75],[0.389,4],[0.5,5.75],[0.611,7],[0.722,8.75],[0.833,10.5],[0.944,11.5],[1,12]], sweepAt:1.883, sweepStep:0.121, sweepHold:0.17, coverOutAt:0.0, coverOutDur:0.60, closeStepTo:0.40, closeFadeAt:0.10, closeFadeDur:0.40,   // real closing = FADE (lanes drop to ~40% in 0.1 s, gone by 0.5 s); a zoom of at most ~1.1x is within the noise of the fit
+    closeLen:1.21, comboFx:true, comboTop:0.3236, comboCap:0.0741, comboPop:1.375, comboUp:0.04, comboHold:0.03, comboDown:0.05, labelY:0.4815, autoFx:true, autoLead:0.03, autoOn:0.20, autoFade:0.07, autoPeak:0.85, padFlare:true, pressFx:true, beamW:1.0, beamTop:0.30, beamA:0.30, closeStepDur:0.10, edgeOut:[[0,1.5],[0.056,1.75],[0.278,2.75],[0.389,4],[0.5,5.75],[0.611,7],[0.722,8.75],[0.833,10.5],[0.944,11.5],[1,12]], sweepAt:1.883, sweepStep:0.121, sweepHold:0.17, coverOutAt:0.0, coverOutDur:0.60, closeStepTo:0.40, closeFadeAt:0.10, closeFadeDur:0.40,   // real closing = FADE (lanes drop to ~40% in 0.1 s, gone by 0.5 s); a zoom of at most ~1.1x is within the noise of the fit
     padInset:false, padW:0.80, padY0:0.15, padY1:0.74,   // real pad = inner window 76% of the lane width, 15%–74% of the button zone height [measured on the Bodyslam clip]
     zoomCY:0.453,       // zoom centre (fraction of H) [fit]
     cdStart:0.25, cdEach:1.0, cdCount:3, cdShow:0.55, // countdown digits [measured 267.1/268.1/269.1, visible ~0.5 s]
@@ -4168,6 +4226,54 @@ var Enjoy = (function(){
 
   function lastNoteEnd(){ let m=0; for(const n of (rec.notes||[])) m=Math.max(m,n.time+(n.duration||0)); return m; }
   function setPhase(p){ E.phase=p; tPhase=E.now(); if(p==='opening') E.t0Open=tPhase; if(p==='cover') E.t0Open=null; }
+  // ---- auto press light: every note of the chart lights its button as if pressed on time [timing measured on Klerm.mp4 @60fps, taps 31.443/33.699/35.944: lights ~0.03 s before the chart time, stays lit ~0.20 s, fades out in ~0.07 s; the strength is a GUESS]
+  let _autoRef=null, _autoLen=-1, _autoLane=[];
+  function autoBuild(){
+    const N=rec.notes||[]; if(N===_autoRef && N.length===_autoLen) return; _autoRef=N; _autoLen=N.length; _autoLane=[]; for(let i=0;i<16;i++) _autoLane.push([]);
+    const put=(l,a,b)=>{ if(l>=0 && l<16) _autoLane[l].push([a,b]); };
+    for(const n of N){
+      if(n.type==='hold'){ const w=holdWaypoints(n); for(let i=0;i<w.length-1;i++) put(Math.round(w[i].lane),(i?w[i].t:w[i].t-C.autoLead),w[i+1].t+(i===w.length-2?0.04:0)); }
+      else put((n.lane||1)-1,n.time-C.autoLead,n.time-C.autoLead+C.autoOn);
+    }
+    for(const a of _autoLane) a.sort((x,y)=>x[0]-y[0]);
+  }
+  E.auto = (ln) => {
+    if(!C.autoFx || !E.on || E.phase!=='playing') return 0;
+    autoBuild(); const a=_autoLane[ln]; if(!a||!a.length) return 0;
+    const t=E.dispT; let lo=0, hi=a.length-1, k=-1;
+    while(lo<=hi){ const m=(lo+hi)>>1; if(a[m][0]<=t){ k=m; lo=m+1; } else hi=m-1; }
+    let best=0;
+    for(let i=k;i>=0 && i>k-6;i--){ const e=a[i][1]; if(t<=e){ best=1; break; } const d=(t-e)/C.autoFade; if(d<1) best=Math.max(best,1-d); }
+    return best*C.autoPeak;
+  };
+  // ---- combo counter from the chart (autoplay: every piece counts). tap/flick = 1; hold = each node (head, joints, tail) + one tick every 1/16 beat while held.
+  //      [fit on Klerm: with tick = 1/16 beat @107 BPM the count is 565/620/662 at 84.0/90.0/96.0 s vs the real 559/614/659, total 2120 vs 2129 -> close, NOT exact: a GUESS until the real scoring rule is plugged in]
+  let _cmbRef=null, _cmbLen=-1, _cmbEv=[];
+  function comboBuild(){
+    const N=rec.notes||[]; if(N===_cmbRef && N.length===_cmbLen) return; _cmbRef=N; _cmbLen=N.length; _cmbEv=[];
+    const bpm=(window._enjoyGrid&&window._enjoyGrid.bpm)||((typeof apprBpm!=='undefined'&&apprBpm)||120), tau=60/bpm/4;
+    for(const n of N){
+      if(n.type!=='hold'){ _cmbEv.push(n.time); continue; }
+      const w=holdWaypoints(n); for(const q of w) _cmbEv.push(q.t);
+      const a=n.time, b=n.time+(n.duration||0); for(let k=1; a+k*tau<b; k++) _cmbEv.push(a+k*tau);
+    }
+    _cmbEv.sort((x,y)=>x-y);
+  }
+  E.combo = (t) => { comboBuild(); const a=_cmbEv; let lo=0, hi=a.length-1, k=-1; while(lo<=hi){ const m=(lo+hi)>>1; if(a[m]<=t){ k=m; lo=m+1; } else hi=m-1; } return {n:k+1, te:k>=0?a[k]:-1e9}; };
+  function drawCombo(){
+    if(!C.comboFx || E.phase!=='playing') return;
+    const t=E.dispT, c=E.combo(t); if(c.n<1) return;
+    const dt=t-c.te;                                                    // pop: 1 -> comboPop in comboUp, hold, back to 1 in comboDown [measured: top edge stays fixed, x centred]
+    let sc=1; if(dt>=0){ if(dt<C.comboUp) sc=1+(C.comboPop-1)*dt/C.comboUp; else if(dt<C.comboUp+C.comboHold) sc=C.comboPop; else if(dt<C.comboUp+C.comboHold+C.comboDown) sc=C.comboPop-(C.comboPop-1)*(dt-C.comboUp-C.comboHold)/C.comboDown; }
+    const cap=C.comboCap*H*sc, fs=cap/0.72;                              // digit height 0.0741 H measured (80 px of 1080)
+    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+    ctx.font='400 '+fs+'px "Helvetica Neue",Arial,sans-serif'; ctx.fillStyle='#fff'; ctx.shadowColor='rgba(0,0,0,0.55)'; ctx.shadowBlur=fs*0.06;
+    ctx.fillText(String(c.n), W/2, C.comboTop*H+cap);                      // top of the digits fixed at 0.3236 H
+    const ly=C.labelY*H, lf=H*0.043; ctx.font='italic 700 '+lf+'px "Arial Narrow",Arial,sans-serif'; ctx.shadowBlur=0;
+    ctx.fillStyle='#fff'; ctx.fillText('PERFECT', W/2, ly+lf*0.35);        // label text/size = a GUESS from the Klerm frame (white word, gold chevrons)
+    ctx.fillStyle='rgb(240,200,40)'; const tw=ctx.measureText('PERFECT').width, bw=lf*0.7; for(const sd of [-1,1]) for(let i=0;i<3;i++){ const x=W/2+sd*(tw/2+lf*0.3), y=ly-lf*0.25+i*lf*0.3; ctx.fillRect(sd<0?x-bw:x, y, bw, lf*0.12); }
+    ctx.restore();
+  }
   E.sweep = (ln) => { if(E.t0Open==null) return 0; const d=(E.now()-E.t0Open)/E.k.o-(C.sweepAt+ln*C.sweepStep); return (d>=0&&d<C.sweepHold)?1:0; };   // [measured, Bodyslam] after the zoom: pads press left->right, 0.121 s apart, each held ~0.17 s
   E.hitAgeEst = () => (ChartRender && ChartRender.active() && ChartRender._m.MOT) ? ChartRender._m.MOT.A : 1.0;
   E.plan = () => {            // resolved timeline in chart seconds (user values, else defaults)
@@ -4286,7 +4392,7 @@ var Enjoy = (function(){
       ctx.drawImage(c.im, c.sx, c.sh*r/rows, c.sw, c.sh/rows+0.5, xl-0.3, y0*H, (xr-xl)+0.6, (y1-y0)*H+0.5); }
     ctx.restore();
   }
-  function padLevel(ln){ return Math.max(state.flash[ln],state.down[ln]?0.72:0,E.sweep(ln)*0.85); }
+  function padLevel(ln){ return Math.max(state.flash[ln],state.down[ln]?0.72:0,E.sweep(ln)*0.85,E.auto(ln)); }
   function drawPadSkin(){
     const S=E.theme.padSkin, topY=BTN_T*H, botY=(BTN_T+BTN_H)*H;
     for(let ln=0;ln<lanes();ln++){
@@ -4299,7 +4405,7 @@ var Enjoy = (function(){
   function drawPressFx(){      // light on a pressed button: a narrow beam up the lane + a soft flare on the cell (colour = theme.fx, default pink)
     const fx=E.theme.fx||[255,70,170], lt=fx.map(c=>Math.round(c+(255-c)*0.45)), yTop=C.beamTop;
     for(let ln=0;ln<lanes();ln++){
-      const f=Math.max(state.beam[ln]||0,E.sweep(ln)); if(f<=0.01) continue;
+      const f=Math.max(state.beam[ln]||0,E.sweep(ln),E.auto(ln)/C.autoPeak); if(f<=0.01) continue;
       const a=(1-C.beamW)/2, b=a+C.beamW, N=16, P=[], Q=[];
       for(let i=0;i<=N;i++){ const yf=JY+(yTop-JY)*i/N, l=dX(ln,yf), r=dX(ln+1,yf); P.push([l+(r-l)*a,yf*H]); Q.push([l+(r-l)*b,yf*H]); }
       ctx.save(); ctx.globalCompositeOperation='screen'; const g=ctx.createLinearGradient(0,JY*H,0,yTop*H);
@@ -4321,7 +4427,7 @@ var Enjoy = (function(){
       win(ln);
       if(E.theme.pad){ ctx.save(); ctx.clip(); const xa=Math.min(pxL(ln,y1),pxL(ln,y0)), xb=Math.max(pxR(ln,y1),pxR(ln,y0)); ctx.drawImage(E.theme.pad,xa,y0*H,xb-xa,(y1-y0)*H); ctx.restore(); }
       else { const g=ctx.createLinearGradient(0,y0*H,0,y1*H); g.addColorStop(0,'rgba(255,30,130,0.97)'); g.addColorStop(0.35,'rgba(245,0,115,0.95)'); g.addColorStop(1,'rgba(180,0,82,0.90)'); ctx.fillStyle=g; ctx.fill(); }
-      const f=Math.max(state.flash[ln],state.down[ln]?0.72:0,E.sweep(ln)*0.85);
+      const f=Math.max(state.flash[ln],state.down[ln]?0.72:0,E.sweep(ln)*0.85,E.auto(ln));
       if(f>0.01){ ctx.save(); win(ln); ctx.clip(); const lg=ctx.createLinearGradient(0,y0*H,0,y1*H); lg.addColorStop(0,`rgba(255,255,255,${0.88*f})`); lg.addColorStop(0.5,`rgba(255,72,168,${0.46*f})`); lg.addColorStop(1,`rgba(255,0,120,${0.18*f})`); ctx.fillStyle=lg; ctx.globalCompositeOperation='screen'; ctx.shadowColor=`rgba(255,210,245,${0.78*f})`; ctx.shadowBlur=18*f; win(ln); ctx.fill(); ctx.restore(); }
     }
     for(let ln=1;ln<lanes();ln++){ ctx.beginPath(); for(let i=0;i<=20;i++){ const yf=BTN_T+(i/20)*BTN_H, x=btnB(ln,yf); i?ctx.lineTo(x,yf*H):ctx.moveTo(x,yf*H); } ctx.strokeStyle='rgba(150,150,165,0.35)'; ctx.lineWidth=1; ctx.stroke(); }
@@ -4381,6 +4487,7 @@ var Enjoy = (function(){
       { const ba=(typeof buttonAlphaVal!=='undefined')?buttonAlphaVal:1; ctx.save(); ctx.globalAlpha=v.alpha*ba; ctx.translate(0,v.slide*H); if(E.theme.padSkin) drawPadSkin(); else if(C.padInset) drawPadsEnjoy(); else drawButtons(); ctx.restore(); }
       if(E.lightI>0.01) drawEdgeLights(E.lightI);
       if(C.pressFx!==false){ ctx.save(); ctx.globalAlpha=v.alpha; ctx.translate(0,v.slide*H); drawPressFx(); ctx.restore(); }
+      drawCombo();
       if(ChartRender && ChartRender.active()){ ChartRender.hideUntil=E.hideUntil; ChartRender.draw(E.dispT); }
       else { const keep=rec.reviewTime; rec.reviewTime=E.dispT; noteHideUntil=E.hideUntil; try{ drawNotePreview(); } finally { noteHideUntil=-1e9; rec.reviewTime=keep; } }
       ctx.restore();
@@ -5486,6 +5593,7 @@ const loopNoteBtn = document.getElementById('loopNoteBtn');
 
 let studioMode = false, studioLoopOn = false;
 let studioBarGridOn = false, studioBpm = 120, studioBeatsPerBar = 4, studioBarOffset = 0;
+let studioSub4 = false, studioSub8 = false, studioSub16 = false, studioRulerOn = true;
 let studioEditLog = []; // [{kind:'note',uid,before,after,ts} | {kind:'bulk',text,ts}]
 let _studioUidCounter = 0;
 
@@ -5805,6 +5913,10 @@ document.getElementById('studioLoopToggle').addEventListener('click', ()=>{
 
 // Bar grid
 document.getElementById('studioBarGridCb').addEventListener('change', e => { studioBarGridOn = e.target.checked; });
+document.getElementById('studioSub4Cb').addEventListener('change', e => { studioSub4 = e.target.checked; });
+document.getElementById('studioSub8Cb').addEventListener('change', e => { studioSub8 = e.target.checked; });
+document.getElementById('studioSub16Cb').addEventListener('change', e => { studioSub16 = e.target.checked; });
+document.getElementById('studioRulerCb').addEventListener('change', e => { studioRulerOn = e.target.checked; });
 document.getElementById('studioBpmInput').addEventListener('change', e => {
   const v = parseFloat(e.target.value); studioBpm = (isFinite(v)&&v>0) ? v : 120; e.target.value = studioBpm;
 });
@@ -5849,28 +5961,61 @@ function drawStudioGhosts(){
   ctx.restore();
 }
 function drawStudioBarGrid(){
-  if (!studioMode || !studioBarGridOn) return;
+  if (!studioMode) return;
   const viewT = rec.reviewTime;
-  const secPerBar = (60/(studioBpm>0?studioBpm:120)) * Math.max(1,studioBeatsPerBar|0);
-  if (!(secPerBar > 0)) return;
-  const tMin = viewT - viewApproach*0.1, tMax = viewT + viewApproach*1.1;
-  let barIdx = Math.floor((tMin - studioBarOffset) / secPerBar);
+  const bpm = studioBpm>0?studioBpm:120, beat = 60/bpm;
+  const secPerBar = beat * Math.max(1,studioBeatsPerBar|0);
+  const sz = Math.round(H*0.055), fnt = `bold ${sz}px Arial`;       // same size as the lane numbers
+  const tMin = viewT, tMax = viewT + viewApproach*1.1;
   ctx.save();
-  for (let guard=0; guard<400; guard++){
-    const t = studioBarOffset + barIdx*secPerBar;
-    if (t > tMax) break;
-    if (t >= tMin){
-      const yf = noteViewYF(t, viewT);
-      if (yf !== null){
-        const y = yf*H, xL = eL(yf), xR = eR(yf);
-        ctx.beginPath(); ctx.moveTo(xL,y); ctx.lineTo(xR,y);
-        ctx.strokeStyle='rgba(255,70,70,0.55)'; ctx.lineWidth=1.5; ctx.stroke();
-        ctx.fillStyle='rgba(255,120,120,0.85)'; ctx.font='9px monospace';
-        ctx.textAlign='left'; ctx.textBaseline='bottom';
-        ctx.fillText(`ห้อง ${barIdx+1} (${t.toFixed(2)}s)`, xR+4, y+3);
+  // sub-beat lines: finest first so the coarser ones are drawn on top
+  const levels = [[studioSub16, beat/4, 'rgba(255,210,90,0.40)', 1],[studioSub8, beat/2, 'rgba(90,200,255,0.50)', 1.2],[studioSub4, beat, 'rgba(255,255,255,0.65)', 1.6]];
+  for (const [on, step, col, lw] of levels){
+    if (!on) continue;
+    let k = Math.ceil((tMin - studioBarOffset) / step - 1e-9);
+    for (let g=0; g<800; g++, k++){
+      const t = studioBarOffset + k*step; if (t > tMax) break;
+      const yf = noteViewYF(t, viewT); if (yf === null) continue;
+      const y = yf*H; ctx.beginPath(); ctx.moveTo(eL(yf),y); ctx.lineTo(eR(yf),y);
+      ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.stroke();
+    }
+  }
+  const barLabels = [];     // y positions already used by a red bar label on the left
+  if (studioBarGridOn){
+    ctx.font = fnt; ctx.textBaseline = 'middle';
+    let barIdx = Math.ceil((tMin - studioBarOffset) / secPerBar - 1e-9);
+    for (let guard=0; guard<400; guard++, barIdx++){
+      const t = studioBarOffset + barIdx*secPerBar; if (t > tMax) break;
+      const yf = noteViewYF(t, viewT); if (yf === null) continue;
+      const y = yf*H, xL = eL(yf), xR = eR(yf);
+      ctx.beginPath(); ctx.moveTo(xL,y); ctx.lineTo(xR,y);
+      ctx.strokeStyle='rgba(255,70,70,0.75)'; ctx.lineWidth=2; ctx.stroke();
+      ctx.fillStyle='rgba(255,120,120,0.95)'; ctx.textAlign='left'; ctx.fillText(`ห้อง ${barIdx+1}`, xR+4, y);
+      if (studioRulerOn){ ctx.textAlign='right'; ctx.fillText(t.toFixed(3), Math.max(xL-8, 6+ctx.measureText(t.toFixed(3)).width), y); barLabels.push(y); }
+    }
+  }
+  if (studioRulerOn){
+    ctx.font = fnt; ctx.textBaseline = 'middle';
+    // ticks every 0.25 s (long + label at whole seconds), left of the lane; spacing follows the note motion, so it is not even
+    let lastY = Infinity;
+    const every = viewApproach>=2.5 ? 4 : (viewApproach>=1.1 ? 2 : 1);     // label every 1 s / 0.5 s / 0.25 s depending on how much time is visible
+    let k = Math.ceil(tMin*4 - 1e-9);
+    for (let g=0; g<400; g++, k++){
+      const t = k/4; if (t > tMax) break;
+      const yf = noteViewYF(t, viewT); if (yf === null) continue;
+      const y = yf*H, xL = eL(yf), whole = (k%every===0);
+      ctx.beginPath(); ctx.moveTo(xL-(whole?14:7),y); ctx.lineTo(xL-2,y);
+      ctx.strokeStyle = whole ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.45)'; ctx.lineWidth = whole?2:1; ctx.stroke();
+      if (whole && Math.abs(y-lastY) > sz*1.05 && !barLabels.some(by=>Math.abs(by-y)<sz*1.05)){
+        const txt = every===4 ? (t>=60 ? Math.floor(t/60)+':'+String(Math.round(t%60)).padStart(2,'0') : String(Math.round(t))+'s') : t.toFixed(2);
+        ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.textAlign='right'; ctx.fillText(txt, Math.max(xL-18, 6+ctx.measureText(txt).width), y); lastY = y;
       }
     }
-    barIdx++;
+    // the current time, exactly at the button line
+    const y0 = (noteViewYF(viewT, viewT) ?? JY)*H, x0 = eL(y0/H);
+    ctx.beginPath(); ctx.moveTo(x0-24,y0); ctx.lineTo(x0-2,y0); ctx.strokeStyle='#ffd25a'; ctx.lineWidth=2.5; ctx.stroke();
+    const cur = viewT.toFixed(3); ctx.fillStyle='#ffd25a'; ctx.textAlign='right';
+    ctx.fillText(cur, Math.max(x0-28, 6+ctx.measureText(cur).width), y0 - sz*0.75);
   }
   ctx.restore();
 }
@@ -5884,7 +6029,7 @@ document.getElementById('editorModeBtn').addEventListener('click',()=>{
   setTimeout(()=>{edResize();edDraw();},50);
 });
 function closeEditor(){document.getElementById('editorOverlay').style.display='none';}
-document.getElementById('edLoadInput').addEventListener('change',e=>{
+document.getElementById('edLoadInput')?.addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
   const fr=new FileReader();
   fr.onload=ev=>{
@@ -5899,14 +6044,14 @@ document.getElementById('edLoadInput').addEventListener('change',e=>{
   fr.readAsText(f);e.target.value='';
 });
 let edVideoObjectURL = null;
-document.getElementById('edVideoInput').addEventListener('change',e=>{
+document.getElementById('edVideoInput')?.addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
   if(!edVideoEl){edVideoEl=document.createElement('video');edVideoEl.muted=true;edVideoEl.playsInline=true;}
   if (edVideoObjectURL) URL.revokeObjectURL(edVideoObjectURL);
   edVideoObjectURL = URL.createObjectURL(f);
   edVideoEl.src=edVideoObjectURL;edVideoEl.load();e.target.value='';
 });
-document.getElementById('edAudioInput').addEventListener('change',e=>{
+document.getElementById('edAudioInput')?.addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
   const fr=new FileReader();
   fr.onload=ev=>{
@@ -5922,7 +6067,7 @@ document.getElementById('edAudioInput').addEventListener('change',e=>{
     edResizeQueued = true;
     requestAnimationFrame(() => {
       edResizeQueued = false;
-      if (document.getElementById('editorOverlay').style.display!=='none') edResize();
+      const _eo=document.getElementById('editorOverlay'); if (_eo && _eo.style.display!=='none') edResize();
     });
   });
 }
