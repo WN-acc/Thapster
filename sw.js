@@ -1,7 +1,7 @@
 // offline cache: the app files are stored on first visit; after that everything opens without internet.
 // only deletes caches that start with 'thapster-', so other apps on this github.io origin keep theirs.
 // bump VERSION whenever index.html changes, so the new version replaces the stored one.
-const VERSION='thapster-10';
+const VERSION='thapster-18';
 const FILES=['./','./index.html','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith('thapster-')&&k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
