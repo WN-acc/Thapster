@@ -3815,7 +3815,7 @@ function drawRibbonV2(wps, viewT, img){                    // ONE continuous rib
   }
   if (pts.length<2) return;
   const n=pts.length, nx=[], ny=[];
-  for (let i=0;i<n;i++){ const a=pts[Math.max(0,i-1)], b=pts[Math.min(n-1,i+1)], tx=b.x-a.x, ty=b.y-a.y, L=Math.hypot(tx,ty)||1; nx.push(-ty/L); ny.push(tx/L); }
+  for (let i=0;i<n;i++){ const a=pts[Math.max(0,i-1)], b=pts[Math.min(n-1,i+1)], tx=b.x-a.x, ty=b.y-a.y, L=Math.hypot(tx,ty)||1; nx.push(1/Math.max(Math.abs(ty)/L,0.35)); ny.push(0); }   // horizontal offset: flat ends parallel to the pill
   ctx.save(); ctx.globalCompositeOperation = 'screen';
   for (const r of lineRuns(img)){
     const e0=r.f0>0.001?1:0, e1=r.f1<0.999?1:0;
